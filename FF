@@ -1,0 +1,270 @@
+local lp = game:GetService("Players").LocalPlayer
+local pg = lp:WaitForChild("PlayerGui")
+local rs = game:GetService("RunService")
+local vim = game:GetService("VirtualInputManager")
+local uis = game:GetService("UserInputService")
+local tws = game:GetService("TweenService")
+
+local cfg = {
+    ap = false,
+    hitPos = -30, 
+    window = 40,
+    keys = {Enum.KeyCode.D, Enum.KeyCode.F, Enum.KeyCode.J, Enum.KeyCode.K},
+    bind = Enum.KeyCode.P,
+    dest = Enum.KeyCode.L,
+    startLane = 1,
+    releaseEarly = -45,
+    tapHold = 0.015,
+    mobile = uis.TouchEnabled and not uis.KeyboardEnabled,
+}
+
+local function getSide()
+    local sw = workspace.CurrentCamera.ViewportSize.X
+    for _, v in ipairs(pg:GetDescendants()) do
+        if v.Name:match("Lane%d") and v:FindFirstChild("Notes") then
+            cfg.startLane = (v.AbsolutePosition.X < sw / 2) and 1 or 5
+            return
+        end
+    end
+end
+
+-- longnote identity
+local function getLong(v)
+    if not v or not v.Parent then return nil end
+    local s = {}
+    for _, obj in ipairs(v:GetChildren()) do
+        if obj.Name == "LayeredSprite" then
+            table.insert(s, obj)
+        end
+    end
+    return s[2]
+end
+
+-- Nixis
+local sg = Instance.new("ScreenGui", pg)
+sg.Name = "Accent"
+sg.ResetOnSpawn = false
+
+local m = Instance.new("Frame", sg)
+m.Size = UDim2.new(0, 280, 0, 70)
+m.Position = UDim2.new(0.5, -140, 0, 20)
+m.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+m.BackgroundTransparency = 0.15
+m.Active = true
+m.Draggable = true
+Instance.new("UICorner", m).CornerRadius = UDim.new(0, 12)
+
+local mStroke = Instance.new("UIStroke", m)
+mStroke.Color = Color3.fromRGB(80, 80, 100)
+mStroke.Thickness = 1
+
+local header = Instance.new("Frame", m)
+header.Size = UDim2.new(1, 0, 0, 35)
+header.BackgroundColor3 = Color3.fromRGB(81, 187, 255)
+header.BackgroundTransparency = 0.9
+Instance.new("UICorner", header).CornerRadius = UDim.new(0, 12)
+
+local title = Instance.new("TextLabel", header)
+title.Size = UDim2.new(0, 150, 1, 0)
+title.Position = UDim2.new(0, 15, 0, 0)
+title.BackgroundTransparency = 1
+title.Font = Enum.Font.GothamBold
+title.TextSize = 16
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Text = "NIXIS"
+
+local statusIndicator = Instance.new("Frame", header)
+statusIndicator.Size = UDim2.new(0, 8, 0, 8)
+statusIndicator.Position = UDim2.new(1, -20, 0.5, -4)
+statusIndicator.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+Instance.new("UICorner", statusIndicator).CornerRadius = UDim.new(1, 0)
+
+local info = Instance.new("TextLabel", m)
+info.Size = UDim2.new(1, -30, 0, 25)
+info.Position = UDim2.new(0, 15, 0, 40)
+info.BackgroundTransparency = 1
+info.Font = Enum.Font.Gotham
+info.TextSize = 13
+info.TextColor3 = Color3.fromRGB(200, 200, 220)
+info.TextXAlignment = Enum.TextXAlignment.Left
+info.Text = "WAITING"
+
+local mobileToggle = nil
+if cfg.mobile then
+    mobileToggle = Instance.new("TextButton", m)
+    mobileToggle.Size = UDim2.new(0, 60, 0, 25)
+    mobileToggle.Position = UDim2.new(1, -70, 0, 5)
+    mobileToggle.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+    mobileToggle.Font = Enum.Font.GothamBold
+    mobileToggle.Text = "START"
+    Instance.new("UICorner", mobileToggle).CornerRadius = UDim.new(0, 6)
+end
+
+local active = {}
+local pressing = {}
+local lastHit = {}
+local btns = {}
+
+for i = 1, 4 do
+    pressing[i] = false
+    lastHit[i] = 0
+end
+
+local function runTouch(ln, val)
+    local b = btns[ln]
+    if not b then return end
+    local p = b.AbsolutePosition + (b.AbsoluteSize / 2)
+    
+    if val then
+        vim:SendTouchEvent(ln, 0, p.X, p.Y)
+    else
+        vim:SendTouchEvent(ln, 2, p.X, p.Y)
+    end
+end
+
+local function hit(k, val, ln)
+    if cfg.mobile then
+        runTouch(ln, val)
+    else
+        vim:SendKeyEvent(val, k, false, game)
+    end
+    pressing[ln] = val
+end
+
+-- close note acc
+local function stutter(k, ln)
+    if pressing[ln] then
+        hit(k, false, ln)
+        task.wait(0.001)
+    end
+end
+
+-- Single note function
+local function proc(v, k, l, ln)
+    if not v or not v.Parent then return end
+    local base = l.AbsolutePosition.Y + l.AbsoluteSize.Y
+    local hit_ok = false
+    local t = getLong(v)
+    local ev 
+	ev = rs.RenderStepped:Connect(function()
+        if not cfg.ap or not v or not v.Parent or hit_ok then 
+            ev:Disconnect()
+            return 
+        end
+        
+        local gap = v.AbsolutePosition.Y - base
+        if gap <= cfg.hitPos and gap > (cfg.hitPos - cfg.window) then
+            hit_ok = true
+            ev:Disconnect()
+            
+            if pressing[ln] and (tick() - lastHit[ln]) < 0.05 then
+                stutter(k, ln)
+            end
+            
+            hit(k, true, ln)
+            lastHit[ln] = tick()
+            
+            if t then
+                task.spawn(function()
+                    while t and t.Parent and cfg.ap do
+                        if (t.AbsolutePosition.Y - base) >= cfg.releaseEarly then
+                            hit(k, false, ln)
+                            break
+                        end
+                        rs.RenderStepped:Wait()
+                    end
+                    if pressing[ln] then hit(k, false, ln) end
+                end)
+            else
+                task.spawn(function()
+                    task.wait(cfg.tapHold)
+                    hit(k, false, ln)
+                end)
+            end
+        end
+    end)
+    table.insert(active, ev)
+end
+
+local function scan()
+    for _, c in ipairs(active) do c:Disconnect() end
+    active = {}
+    
+    if cfg.mobile then
+        task.wait(0.5)
+        local root = pg:FindFirstChild("Window")
+        root = root and root:FindFirstChild("Game")
+        root = root and root:FindFirstChild("TouchInputs")
+        
+        if root then
+            for i = 1, 4 do
+                btns[i] = root:FindFirstChild(tostring(cfg.startLane + i - 1))
+            end
+        end
+    end
+
+    local sw = workspace.CurrentCamera.ViewportSize.X
+    local folder = nil
+    local dist = math.huge
+
+    for _, v in ipairs(pg:GetDescendants()) do
+        if v.Name == "Lane1" and v:FindFirstChild("Notes") then
+            local is_left = v.AbsolutePosition.X < (sw / 2)
+            if (cfg.startLane == 1 and is_left) or (cfg.startLane == 5 and not is_left) then
+                local d = math.abs(v.AbsolutePosition.X - (sw * 0.25))
+                if d < dist then
+                    dist = d
+                    folder = v.Parent
+                end
+            end
+        end
+    end
+
+    if folder then
+        for i = 1, 4 do
+            local l = folder:FindFirstChild("Lane"..(cfg.startLane + i - 1))
+            local notes = l and l:FindFirstChild("Notes")
+            if notes then
+                for _, v in ipairs(notes:GetChildren()) do
+                    if v:IsA("Frame") then task.spawn(proc, v, cfg.keys[i], l, i) end
+                end
+                table.insert(active, notes.ChildAdded:Connect(function(v)
+                    if v:IsA("Frame") then task.spawn(proc, v, cfg.keys[i], l, i) end
+                end))
+            end
+        end
+    else
+        task.wait(1)
+        scan()
+    end
+end
+
+local function anim(active)
+    tws:Create(statusIndicator, TweenInfo.new(0.3), {BackgroundColor3 = active and Color3.fromRGB(50, 255, 100) or Color3.fromRGB(100, 100, 120)}):Play()
+    mStroke.Color = active and Color3.fromRGB(50, 255, 100) or Color3.fromRGB(80, 80, 100)
+end
+
+uis.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.KeyCode == cfg.dest and uis:IsKeyDown(Enum.KeyCode.LeftControl) then
+        sg:Destroy()
+    elseif input.KeyCode == cfg.bind then
+        cfg.ap = not cfg.ap
+        anim(cfg.ap)
+        info.Text = cfg.ap and "ACTIVE" or "WAITING"
+    end
+end)
+
+if mobileToggle then
+    mobileToggle.MouseButton1Click:Connect(function()
+        cfg.ap = not cfg.ap
+        anim(cfg.ap)
+        mobileToggle.Text = cfg.ap and "STOP" or "START"
+        mobileToggle.BackgroundColor3 = cfg.ap and Color3.fromRGB(255, 60, 60) or Color3.fromRGB(50, 50, 60)
+        info.Text = cfg.ap and "ACTIVE" or "WAITING"
+    end)
+end
+
+getSide()
+task.spawn(scan)
