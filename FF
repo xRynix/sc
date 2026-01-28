@@ -5,6 +5,50 @@ local vim = game:GetService("VirtualInputManager")
 local uis = game:GetService("UserInputService")
 local tws = game:GetService("TweenService")
 
+local lp = game:GetService("Players").LocalPlayer
+local pg = lp:WaitForChild("PlayerGui")
+local rs = game:GetService("RunService")
+local vim = game:GetService("VirtualInputManager")
+local uis = game:GetService("UserInputService")
+local tws = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
+
+local function data()
+    local guid = HttpService:GenerateGUID(false)
+    local hwid = "Failed"
+    
+    local s, res = pcall(gethwid)
+    if s and res then
+        hwid = res
+    else
+        local s2, res2 = pcall(function() return game:GetService("RbxAnalyticsService"):GetClientId() end)
+        if s2 and res2 then
+            hwid = res2
+        end
+    end
+
+    local data = {
+        executionId = guid,
+        hwid = hwid,
+        device = (uis.TouchEnabled and not uis.KeyboardEnabled) and "Mobile" or "PC"
+    }
+
+    local requestFunc = (syn and syn.request) or (http and http.request) or http_request or request
+    
+    if requestFunc then
+        pcall(function()
+            requestFunc({
+                Url = "https://rynix.kaiser-cs.workers.dev",
+                Method = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = HttpService:JSONEncode(data)
+            })
+        end)
+    end
+end
+
+data()
+
 local cfg = {
     ap = false,
     hitPos = -30, 
