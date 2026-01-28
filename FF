@@ -4,13 +4,6 @@ local rs = game:GetService("RunService")
 local vim = game:GetService("VirtualInputManager")
 local uis = game:GetService("UserInputService")
 local tws = game:GetService("TweenService")
-
-local lp = game:GetService("Players").LocalPlayer
-local pg = lp:WaitForChild("PlayerGui")
-local rs = game:GetService("RunService")
-local vim = game:GetService("VirtualInputManager")
-local uis = game:GetService("UserInputService")
-local tws = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
 
 local function data()
