@@ -6,6 +6,11 @@ local uis = game:GetService("UserInputService")
 local tws = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
 
+if game.PlaceId ~= 6447798030 then
+    lp:Kick("Not supported")
+    return
+end
+
 local function data()
     local guid = HttpService:GenerateGUID(false)
     local hwid = "Failed"
